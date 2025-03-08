@@ -29,8 +29,8 @@ const ControleEncosta = ({
         if (index === diaFolga) {
           return 0; // Zera apenas o dia de folga
         }
-        // Mantém o valor existente ou usa 80 se não houver valor
-        return valor || 80;
+        // Mantém o valor existente ou usa 0 se não houver valor
+        return valor || 0;
       });
       onValoresChange(novosValores);
     }
