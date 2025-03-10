@@ -21,14 +21,14 @@ const Controles = ({
   };
 
   const aumentarMultiplicador = () => {
-    onMultiplicadorChange(multiplicadorAtual + 1);
-    setInputValue((multiplicadorAtual + 1).toString());
+    onMultiplicadorChange(multiplicadorAtual + 0.5);
+    setInputValue((multiplicadorAtual + 0.5).toString());
   };
 
   const diminuirMultiplicador = () => {
     if (multiplicadorAtual > 1) {
-      onMultiplicadorChange(multiplicadorAtual - 1);
-      setInputValue((multiplicadorAtual - 1).toString());
+      onMultiplicadorChange(multiplicadorAtual - 0.5);
+      setInputValue((multiplicadorAtual - 0.5).toString());
     }
   };
 
