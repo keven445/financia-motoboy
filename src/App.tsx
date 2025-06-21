@@ -1,16 +1,16 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import Multiplicaçao from "./Multiplicaçao";
+
 import ResumoTotal from "./ResumoTotal";
-import Controles from "./Controles";
 import ControleFolga from "./ControleFolga";
 import ControlePagamento from "./ControlePagamento";
 import ControleGastos from "./ControleGastos";
 import ControleEncosta from "./ControleEncosta";
+import { SaldoMensal } from "./ControleSaldo";
 
 // Valores padrão
 const valoresPadrao = {
-  valoresEncosta: [80, 80, 80, 0, 80, 80, 80],
+  valoresEncosta: [0, 0, 0, 0, 0, 0, 0],
   multiplicador: 5,
   diaFolga: 3,
   valoresPorDia: [0, 0, 0, 0, 0, 0, 0],
@@ -42,9 +42,6 @@ const valoresPadrao = {
 
 const App = () => {
   // Estados
-  const [valoresMultiplicacao, setValoresMultiplicacao] = useState<number[]>(
-    []
-  );
   const [valoresEncosta, setValoresEncosta] = useState(() => {
     const dadosSalvos = localStorage.getItem("financasApp");
     if (dadosSalvos) {
@@ -53,8 +50,12 @@ const App = () => {
         // Garante que o dia de folga está zerado nos valores iniciais
         const valoresIniciais =
           dados.valoresEncosta || valoresPadrao.valoresEncosta;
-        const diaFolgaSalvo = dados.diaFolga || valoresPadrao.diaFolga;
-        valoresIniciais[diaFolgaSalvo] = 0;
+        const diasFolgaSalvos = dados.diasFolga || [valoresPadrao.diaFolga];
+        diasFolgaSalvos.forEach((dia: number) => {
+          if (dia !== valoresPadrao.diaFolga) {
+            valoresIniciais[dia] = 0;
+          }
+        });
         return valoresIniciais;
       } catch (error) {
         console.error("Erro ao carregar valores da encosta:", error);
@@ -73,13 +74,13 @@ const App = () => {
     return valoresPadrao.multiplicador;
   });
 
-  const [diaFolga, setDiaFolga] = useState(() => {
+  const [diasFolga, setDiasFolga] = useState<number[]>(() => {
     const dadosSalvos = localStorage.getItem("financasApp");
     if (dadosSalvos) {
       const dados = JSON.parse(dadosSalvos);
-      return dados.diaFolga || valoresPadrao.diaFolga;
+      return dados.diasFolga || [valoresPadrao.diaFolga];
     }
-    return valoresPadrao.diaFolga;
+    return [valoresPadrao.diaFolga];
   });
 
   const [valoresPorDia, setValoresPorDia] = useState(() => {
@@ -109,6 +110,9 @@ const App = () => {
     return valoresPadrao.saldosMensais;
   });
 
+  // Adicionar estado para as taxas de entrega
+  const [taxasEntrega, setTaxasEntrega] = useState<number[]>([0, 0, 0, 0, 0]);
+
   // Função para resetar todos os dados
   const resetarDados = () => {
     if (
@@ -118,7 +122,7 @@ const App = () => {
     ) {
       setValoresEncosta(valoresPadrao.valoresEncosta);
       setMultiplicador(valoresPadrao.multiplicador);
-      setDiaFolga(valoresPadrao.diaFolga);
+      setDiasFolga([valoresPadrao.diaFolga]);
       setValoresPorDia(valoresPadrao.valoresPorDia);
       setGastos(valoresPadrao.gastos);
       setSaldosMensais(valoresPadrao.saldosMensais);
@@ -126,12 +130,75 @@ const App = () => {
     }
   };
 
+  // Função para alternar folga
+  const handleToggleFolga = (index: number) => {
+    setDiasFolga((prev) =>
+      prev.includes(index) ? prev.filter((d) => d !== index) : [...prev, index]
+    );
+  };
+
+  // Função para aplicar máscara de moeda brasileira melhorada
+  const maskMoeda = (valor: string) => {
+    // Remove tudo que não for número ou vírgula
+    let v = valor.replace(/[^\d,]/g, "");
+    // Se já tem vírgula, só permite uma
+    const partes = v.split(",");
+    if (partes.length > 2) v = partes[0] + "," + partes[1];
+    // Se digitar só vírgula, ignora
+    if (v === ",") return "";
+    // Se começa com vírgula, coloca 0 na frente
+    if (v.startsWith(",")) v = "0" + v;
+    // Se não tem vírgula e mais de 2 dígitos, insere vírgula automática
+    if (!v.includes(",") && v.length > 2) {
+      v = v.replace(/^(\d+)(\d{2})$/, "$1,$2");
+    }
+    // Limita a 2 casas decimais
+    if (v.includes(",")) {
+      const [int, dec] = v.split(",");
+      v = int + "," + dec.slice(0, 2);
+    }
+    return v;
+  };
+
+  const handleTaxaEntregaMaskedChange = (index: number, valor: string) => {
+    const valorMasc = maskMoeda(valor);
+    const novasTaxas = [...taxasEntrega];
+    // Salva como número float para lógica, mas mostra formatado
+    novasTaxas[index] =
+      valorMasc === "" ? 0 : parseFloat(valorMasc.replace(",", "."));
+    setTaxasEntrega(novasTaxas);
+  };
+
+  const handleAdicionarTaxa = (index: number) => {
+    const valorAdicionar = taxasEntrega[index];
+    if (valorAdicionar === 0) return;
+    const mesAtual = new Date().getMonth();
+    const diaAtual = new Date().getDay();
+    setSaldosMensais((prev: SaldoMensal[]) =>
+      prev.map((saldo: SaldoMensal, i: number) =>
+        i === mesAtual
+          ? { ...saldo, saldoBruto: saldo.saldoBruto + valorAdicionar }
+          : saldo
+      )
+    );
+
+    setValoresPorDia((prev: number[]) => {
+      const novoArr = [...prev];
+      novoArr[diaAtual] = (novoArr[diaAtual] || 0) + 1;
+      return novoArr;
+    });
+  };
+
+  // Pega o saldoBruto do mês atual
+  const mesAtual = new Date().getMonth();
+  const saldoBrutoMesAtual = saldosMensais[mesAtual]?.saldoBruto || 0;
+
   // Salva dados no localStorage quando houver mudanças
   useEffect(() => {
     const dadosParaSalvar = {
       valoresEncosta,
       multiplicador,
-      diaFolga,
+      diasFolga,
       valoresPorDia,
       gastos,
       saldosMensais,
@@ -146,15 +213,15 @@ const App = () => {
   }, [
     valoresEncosta,
     multiplicador,
-    diaFolga,
+    diasFolga,
     valoresPorDia,
     gastos,
     saldosMensais,
   ]);
 
   return (
-    <div className="p-0.5 sm:p-2 md:p-4 space-y-1 sm:space-y-2 md:space-y-4 w-full mx-auto min-h-screen bg-gray-900">
-      <div className="flex flex-col items-center gap-1 sm:gap-2 max-w-7xl mx-auto">
+    <div className="p-0 sm:p-1 md:p-1 space-y-0.5 sm:space-y-0.5 md:space-y-1 w-full mx-auto bg-gray-900">
+      <div className="flex flex-col items-center gap-0.5 sm:gap-1 max-w-7xl mx-auto">
         <h1 className="text-base sm:text-lg md:text-2xl text-white font-bold text-center">
           Controle Financeiro
         </h1>
@@ -185,35 +252,66 @@ const App = () => {
           </button>
         </div>
       </div>
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-1 sm:gap-2 max-w-full mx-auto">
-        <div className="space-y-1 sm:space-y-2">
-          <Controles
-            multiplicadorAtual={multiplicador}
-            onMultiplicadorChange={setMultiplicador}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-0.5 sm:gap-1 max-w-full mx-auto">
+        <div className="space-y-0.5 sm:space-y-1">
+          <ControleFolga
+            diasFolga={diasFolga}
+            onFolgaChange={handleToggleFolga}
           />
-          <ControleFolga folgaAtual={diaFolga} onFolgaChange={setDiaFolga} />
+          <div className="flex flex-col items-center w-full">
+            <span className="text-xs text-gray-300 mb-1">Taxas Manuais</span>
+            <div className="flex flex-row flex-wrap gap-2 justify-center w-full bg-gray-100 dark:bg-gray-800 rounded-lg shadow-md py-2 px-2 mb-2">
+              {[0, 1, 2, 3, 4].map((idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center bg-white dark:bg-gray-700 rounded-lg shadow-sm overflow-hidden"
+                >
+                  <input
+                    type="text"
+                    value={
+                      taxasEntrega[idx] === 0
+                        ? ""
+                        : maskMoeda(
+                            taxasEntrega[idx].toString().replace(/\./, ",")
+                          )
+                    }
+                    onChange={(e) =>
+                      handleTaxaEntregaMaskedChange(idx, e.target.value)
+                    }
+                    className="w-16 px-2 py-1 rounded-l-lg bg-gray-100 dark:bg-gray-600 text-gray-900 dark:text-white border-0 focus:ring-2 focus:ring-blue-400 text-center text-sm transition-all"
+                    min="0"
+                    placeholder={`Taxa #${idx + 1}`}
+                    inputMode="decimal"
+                    pattern="[0-9,]*"
+                  />
+                  <button
+                    onClick={() => handleAdicionarTaxa(idx)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-r-lg font-bold text-base flex items-center justify-center transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  >
+                    <span className="text-lg leading-none">+</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
           <ControlePagamento
             valores={valoresPorDia}
             onValoresChange={setValoresPorDia}
           />
           <ControleGastos onGastosChange={setGastos} gastosIniciais={gastos} />
         </div>
-        <div className="flex flex-col gap-1 sm:gap-2 lg:gap-4">
-          <Multiplicaçao
-            onValoresChange={setValoresMultiplicacao}
-            multiplicador={multiplicador}
-            folgaIndex={diaFolga}
-            valores={valoresPorDia}
-          />
+        <div className="flex flex-col gap-0.5 sm:gap-1 lg:gap-2">
           <ControleEncosta
             valores={valoresEncosta}
             onValoresChange={setValoresEncosta}
-            diaFolga={diaFolga}
+            diasFolga={diasFolga}
           />
           <ResumoTotal
-            valoresMultiplicacao={valoresMultiplicacao}
+            valoresMultiplicacao={[]}
             valoresEncosta={valoresEncosta}
             gastos={gastos}
+            saldoBrutoMesAtual={saldoBrutoMesAtual}
+            totalTaxasManuais={taxasEntrega.reduce((acc, v) => acc + v, 0)}
           />
         </div>
       </div>

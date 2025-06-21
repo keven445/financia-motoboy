@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-interface SaldoMensal {
+export interface SaldoMensal {
   mes: string;
   saldoBruto: number;
   saldoFinal: number;

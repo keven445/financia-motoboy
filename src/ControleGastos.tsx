@@ -13,40 +13,47 @@ const ControleGastos = ({
   gastosIniciais,
 }: ControleGastosProps) => {
   const diasSemana = [
+    "Domingo",
     "Segunda",
     "Terça",
     "Quarta",
     "Quinta",
     "Sexta",
     "Sábado",
-    "Domingo",
   ];
 
   const [gastosDiarios, setGastosDiarios] = useState<number[]>(
     gastosIniciais?.diarios || new Array(7).fill(0)
   );
-  const [gastosSemanais, setGastosSemanais] = useState<number[]>(
-    gastosIniciais?.semanais || [0]
-  );
+  const [gastosSemanais] = useState<number[]>(gastosIniciais?.semanais || [0]);
 
   useEffect(() => {
     onGastosChange({ diarios: gastosDiarios, semanais: gastosSemanais });
   }, [gastosDiarios, gastosSemanais, onGastosChange]);
 
-  const handleGastoDiarioChange = (index: number, valor: string) => {
-    const valorSemZerosEsquerda = valor.replace(/^0+/, "");
-    const novoValor =
-      valorSemZerosEsquerda === "" ? 0 : parseInt(valorSemZerosEsquerda);
-    const novosGastos = [...gastosDiarios];
-    novosGastos[index] = novoValor;
-    setGastosDiarios(novosGastos);
+  // Função para aplicar máscara de moeda brasileira
+  const maskMoeda = (valor: string) => {
+    let v = valor.replace(/[^\d,]/g, "");
+    const partes = v.split(",");
+    if (partes.length > 2) v = partes[0] + "," + partes[1];
+    if (v === ",") return "";
+    if (v.startsWith(",")) v = "0" + v;
+    if (!v.includes(",") && v.length > 2) {
+      v = v.replace(/^(\d+)(\d{2})$/, "$1,$2");
+    }
+    if (v.includes(",")) {
+      const [int, dec] = v.split(",");
+      v = int + "," + dec.slice(0, 2);
+    }
+    return v;
   };
 
-  const handleGastoSemanalChange = (valor: string) => {
-    const valorSemZerosEsquerda = valor.replace(/^0+/, "");
-    const novoValor =
-      valorSemZerosEsquerda === "" ? 0 : parseInt(valorSemZerosEsquerda);
-    setGastosSemanais([novoValor]);
+  const handleGastoDiarioMaskedChange = (index: number, valor: string) => {
+    const valorMasc = maskMoeda(valor);
+    const novosGastos = [...gastosDiarios];
+    novosGastos[index] =
+      valorMasc === "" ? 0 : parseFloat(valorMasc.replace(",", "."));
+    setGastosDiarios(novosGastos);
   };
 
   const totalGastos =
@@ -124,9 +131,6 @@ const ControleGastos = ({
                   // Reseta os valores para a próxima semana
                   const valoresPadrao = {
                     ...dados,
-                    valoresEncosta: [80, 80, 80, 0, 80, 80, 80],
-                    multiplicador: 5,
-                    diaFolga: 3,
                     valoresPorDia: [0, 0, 0, 0, 0, 0, 0],
                     gastos: {
                       diarios: new Array(7).fill(0),
@@ -172,7 +176,7 @@ const ControleGastos = ({
         </div>
 
         <h1 className="text-base sm:text-lg md:text-2xl text-white font-bold text-center">
-          Controle Financeiro
+          Controle de gastos
         </h1>
 
         {/* Gastos Diários */}
@@ -190,14 +194,22 @@ const ControleGastos = ({
                   R$
                 </span>
                 <input
-                  type="number"
-                  value={gastosDiarios[index] === 0 ? "" : gastosDiarios[index]}
+                  type="text"
+                  value={
+                    gastosDiarios[index] === 0
+                      ? ""
+                      : maskMoeda(
+                          gastosDiarios[index].toString().replace(/\./, ",")
+                        )
+                  }
                   onChange={(e) =>
-                    handleGastoDiarioChange(index, e.target.value)
+                    handleGastoDiarioMaskedChange(index, e.target.value)
                   }
                   className="w-full min-w-[80px] sm:min-w-[100px] md:min-w-[120px] px-2 sm:px-3 md:px-4 py-1 sm:py-2 md:py-3 rounded bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none text-center text-[12px] sm:text-base md:text-lg"
                   min="0"
                   placeholder="0"
+                  inputMode="decimal"
+                  pattern="[0-9,]*"
                 />
               </div>
             </div>
@@ -205,24 +217,6 @@ const ControleGastos = ({
         </div>
 
         {/* Gastos Semanais */}
-        <div className="flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-4 border-t border-gray-700 pt-4 w-full max-w-4xl">
-          <label className="text-white text-center text-[12px] sm:text-base md:text-lg lg:text-xl font-semibold">
-            Gastos Semanais:
-          </label>
-          <div className="flex items-center justify-center">
-            <span className="text-green-500 mr-2 text-[12px] sm:text-base md:text-lg lg:text-xl">
-              R$
-            </span>
-            <input
-              type="number"
-              value={gastosSemanais[0] === 0 ? "" : gastosSemanais[0]}
-              onChange={(e) => handleGastoSemanalChange(e.target.value)}
-              className="w-full min-w-[100px] sm:min-w-[120px] md:min-w-[140px] px-2 sm:px-3 md:px-4 py-1 sm:py-2 md:py-3 rounded bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none text-center text-[12px] sm:text-base md:text-lg"
-              min="0"
-              placeholder="0"
-            />
-          </div>
-        </div>
 
         {/* Total */}
         <div className="flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-4 border-t border-gray-700 pt-4 w-full max-w-4xl">
