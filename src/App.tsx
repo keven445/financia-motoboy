@@ -40,6 +40,12 @@ const valoresPadrao = {
     })),
 };
 
+// Mover funções auxiliares para cima para que possam ser usadas na inicialização do estado
+const formatMoedaDisplay = (num: number) => {
+  if (num === 0) return "";
+  return num.toFixed(2).replace(".", ",");
+};
+
 const App = () => {
   // Estados
   const [valoresEncosta, setValoresEncosta] = useState(() => {
@@ -111,7 +117,27 @@ const App = () => {
   });
 
   // Adicionar estado para as taxas de entrega
-  const [taxasEntrega, setTaxasEntrega] = useState<number[]>([0, 0, 0, 0, 0]);
+  const [taxasEntrega, setTaxasEntrega] = useState<number[]>(() => {
+    const dadosSalvos = localStorage.getItem("financasApp");
+    if (dadosSalvos) {
+      const dados = JSON.parse(dadosSalvos);
+      return dados.taxasEntrega || [0, 0, 0, 0, 0];
+    }
+    return [0, 0, 0, 0, 0];
+  });
+
+  // NOVO: Estado separado para o valor de exibição dos inputs de taxa
+  const [taxasEntregaDisplay, setTaxasEntregaDisplay] = useState<string[]>(
+    () => {
+      const dadosSalvos = localStorage.getItem("financasApp");
+      if (dadosSalvos) {
+        const dados = JSON.parse(dadosSalvos);
+        const taxasNum: number[] = dados.taxasEntrega || [0, 0, 0, 0, 0];
+        return taxasNum.map(formatMoedaDisplay);
+      }
+      return ["", "", "", "", ""];
+    }
+  );
 
   // Função para resetar todos os dados
   const resetarDados = () => {
@@ -126,6 +152,8 @@ const App = () => {
       setValoresPorDia(valoresPadrao.valoresPorDia);
       setGastos(valoresPadrao.gastos);
       setSaldosMensais(valoresPadrao.saldosMensais);
+      setTaxasEntrega([0, 0, 0, 0, 0]);
+      setTaxasEntregaDisplay(["", "", "", "", ""]);
       localStorage.removeItem("financasApp");
     }
   };
@@ -137,47 +165,70 @@ const App = () => {
     );
   };
 
-  // Função para aplicar máscara de moeda brasileira melhorada
-  const maskMoeda = (valor: string) => {
+  // Função para aplicar máscara de moeda brasileira durante a digitação
+  const maskMoedaInput = (valor: string) => {
     // Remove tudo que não for número ou vírgula
     let v = valor.replace(/[^\d,]/g, "");
-    // Se já tem vírgula, só permite uma
+
+    // Garante que haja apenas uma vírgula
     const partes = v.split(",");
-    if (partes.length > 2) v = partes[0] + "," + partes[1];
-    // Se digitar só vírgula, ignora
-    if (v === ",") return "";
-    // Se começa com vírgula, coloca 0 na frente
-    if (v.startsWith(",")) v = "0" + v;
-    // Se não tem vírgula e mais de 2 dígitos, insere vírgula automática
-    if (!v.includes(",") && v.length > 2) {
-      v = v.replace(/^(\d+)(\d{2})$/, "$1,$2");
+    if (partes.length > 2) {
+      v = partes[0] + "," + partes.slice(1).join("");
     }
-    // Limita a 2 casas decimais
-    if (v.includes(",")) {
-      const [int, dec] = v.split(",");
-      v = int + "," + dec.slice(0, 2);
+
+    // Limita a duas casas decimais
+    if (partes.length === 2) {
+      const [int, dec] = partes;
+      if (dec.length > 2) {
+        v = `${int},${dec.substring(0, 2)}`;
+      }
     }
+
     return v;
   };
 
   const handleTaxaEntregaMaskedChange = (index: number, valor: string) => {
-    const valorMasc = maskMoeda(valor);
-    const novasTaxas = [...taxasEntrega];
-    // Salva como número float para lógica, mas mostra formatado
-    novasTaxas[index] =
-      valorMasc === "" ? 0 : parseFloat(valorMasc.replace(",", "."));
-    setTaxasEntrega(novasTaxas);
+    const valorMasc = maskMoedaInput(valor);
+
+    // Atualiza o estado de exibição para que o usuário veja o que digita
+    const newDisplayValues = [...taxasEntregaDisplay];
+    newDisplayValues[index] = valorMasc;
+    setTaxasEntregaDisplay(newDisplayValues);
+
+    // Atualiza o estado numérico para os cálculos
+    const newNumericValues = [...taxasEntrega];
+    newNumericValues[index] = parseFloat(valorMasc.replace(",", ".") || "0");
+    setTaxasEntrega(newNumericValues);
+  };
+
+  // NOVO: Formata o valor quando o usuário clica fora do input
+  const handleTaxaEntregaBlur = (index: number) => {
+    const valorNumerico = taxasEntrega[index];
+    const valorFormatado = formatMoedaDisplay(valorNumerico);
+
+    const novasTaxasDisplay = [...taxasEntregaDisplay];
+    if (novasTaxasDisplay[index] !== valorFormatado) {
+      novasTaxasDisplay[index] = valorFormatado;
+      setTaxasEntregaDisplay(novasTaxasDisplay);
+    }
   };
 
   const handleAdicionarTaxa = (index: number) => {
     const valorAdicionar = taxasEntrega[index];
     if (valorAdicionar === 0) return;
+
     const mesAtual = new Date().getMonth();
     const diaAtual = new Date().getDay();
+
     setSaldosMensais((prev: SaldoMensal[]) =>
       prev.map((saldo: SaldoMensal, i: number) =>
         i === mesAtual
-          ? { ...saldo, saldoBruto: saldo.saldoBruto + valorAdicionar }
+          ? {
+              ...saldo,
+              saldoBruto: Number(
+                (saldo.saldoBruto + valorAdicionar).toFixed(2)
+              ),
+            }
           : saldo
       )
     );
@@ -202,6 +253,7 @@ const App = () => {
       valoresPorDia,
       gastos,
       saldosMensais,
+      taxasEntrega,
     };
 
     try {
@@ -217,6 +269,7 @@ const App = () => {
     valoresPorDia,
     gastos,
     saldosMensais,
+    taxasEntrega,
   ]);
 
   return (
@@ -268,18 +321,12 @@ const App = () => {
                 >
                   <input
                     type="text"
-                    value={
-                      taxasEntrega[idx] === 0
-                        ? ""
-                        : maskMoeda(
-                            taxasEntrega[idx].toString().replace(/\./, ",")
-                          )
-                    }
+                    value={taxasEntregaDisplay[idx]}
                     onChange={(e) =>
                       handleTaxaEntregaMaskedChange(idx, e.target.value)
                     }
+                    onBlur={() => handleTaxaEntregaBlur(idx)}
                     className="w-16 px-2 py-1 rounded-l-lg bg-gray-100 dark:bg-gray-600 text-gray-900 dark:text-white border-0 focus:ring-2 focus:ring-blue-400 text-center text-sm transition-all"
-                    min="0"
                     placeholder={`Taxa #${idx + 1}`}
                     inputMode="decimal"
                     pattern="[0-9,]*"

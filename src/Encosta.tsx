@@ -16,18 +16,34 @@ const Encosta = ({ onValoresChange, valores }: EncostaProps) => {
 
   // Função para aplicar máscara de moeda brasileira
   const maskMoeda = (valor: string) => {
+    // Remove tudo que não for número ou vírgula
     let v = valor.replace(/[^\d,]/g, "");
+
+    // Se tem mais de uma vírgula, mantém só a primeira
     const partes = v.split(",");
-    if (partes.length > 2) v = partes[0] + "," + partes[1];
-    if (v === ",") return "";
-    if (v.startsWith(",")) v = "0" + v;
-    if (!v.includes(",") && v.length > 2) {
-      v = v.replace(/^(\d+)(\d{2})$/, "$1,$2");
+    if (partes.length > 2) {
+      v = partes[0] + "," + partes[1];
     }
+
+    // Se for só vírgula, retorna vazio
+    if (v === ",") return "";
+
+    // Se começar com vírgula, adiciona zero na frente
+    if (v.startsWith(",")) {
+      v = "0" + v;
+    }
+
+    // Se não tem vírgula e tem mais de 2 dígitos, formata com vírgula
+    if (!v.includes(",") && v.length > 2) {
+      v = v.slice(0, -2) + "," + v.slice(-2);
+    }
+
+    // Se tem vírgula, garante que tenha até 2 casas decimais
     if (v.includes(",")) {
       const [int, dec] = v.split(",");
-      v = int + "," + dec.slice(0, 2);
+      v = int + "," + (dec || "").padEnd(2, "0").slice(0, 2);
     }
+
     return v;
   };
 

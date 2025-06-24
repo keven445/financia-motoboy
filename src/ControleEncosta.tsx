@@ -36,8 +36,42 @@ const ControleEncosta = ({
     }
   }, [diasFolga]);
 
+  const maskMoeda = (valor: string) => {
+    // Remove tudo que não for número ou vírgula
+    let v = valor.replace(/[^\d,]/g, "");
+
+    // Se tem mais de uma vírgula, mantém só a primeira
+    const partes = v.split(",");
+    if (partes.length > 2) {
+      v = partes[0] + "," + partes[1];
+    }
+
+    // Se for só vírgula, retorna vazio
+    if (v === ",") return "";
+
+    // Se começar com vírgula, adiciona zero na frente
+    if (v.startsWith(",")) {
+      v = "0" + v;
+    }
+
+    // Se não tem vírgula e tem mais de 2 dígitos, formata com vírgula
+    if (!v.includes(",") && v.length > 2) {
+      v = v.slice(0, -2) + "," + v.slice(-2);
+    }
+
+    // Se tem vírgula, garante que tenha até 2 casas decimais
+    if (v.includes(",")) {
+      const [int, dec] = v.split(",");
+      v = int + "," + (dec || "").padEnd(2, "0").slice(0, 2);
+    }
+
+    return v;
+  };
+
   const handleValorChange = (index: number, novoValor: string) => {
-    const numeroValido = parseInt(novoValor) || 0;
+    const valorMasc = maskMoeda(novoValor);
+    const numeroValido =
+      valorMasc === "" ? 0 : parseFloat(valorMasc.replace(",", "."));
     const novosValores = [...valores];
     novosValores[index] = numeroValido;
     onValoresChange(novosValores);
@@ -88,8 +122,10 @@ const ControleEncosta = ({
               )}
             </span>
             <input
-              type="number"
-              value={valor}
+              type="text"
+              value={
+                valor === 0 ? "" : maskMoeda(valor.toString().replace(".", ","))
+              }
               onChange={(e) => handleValorChange(index, e.target.value)}
               className={`w-full px-2 sm:px-3 md:px-4 py-1 sm:py-2 md:py-3 rounded text-[12px] sm:text-base md:text-lg text-center ${
                 diasFolga.includes(index)
@@ -98,6 +134,8 @@ const ControleEncosta = ({
               } border border-gray-600 focus:border-blue-500 focus:outline-none`}
               min="0"
               disabled={diasFolga.includes(index)}
+              inputMode="decimal"
+              pattern="[0-9,]*"
             />
           </div>
         ))}
